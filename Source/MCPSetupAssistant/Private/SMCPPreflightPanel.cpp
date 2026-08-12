@@ -12,7 +12,10 @@
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
+#include "Misc/FileHelper.h"
 #include "Modules/ModuleManager.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
@@ -109,11 +112,49 @@ EModelContextProtocolClient ClientFromName(const FString& Name)
 
 FString ClientConfigPath(const FString& Name)
 {
-    if (Name == TEXT("Cursor")) return FPaths::Combine(FPaths::ProjectDir(), TEXT(".cursor/mcp.json"));
-    if (Name == TEXT("VS Code")) return FPaths::Combine(FPaths::ProjectDir(), TEXT(".vscode/mcp.json"));
-    if (Name == TEXT("Gemini")) return FPaths::Combine(FPaths::ProjectDir(), TEXT(".gemini/settings.json"));
-    if (Name == TEXT("Codex")) return FPaths::Combine(FPaths::ProjectDir(), TEXT(".codex/config.toml"));
-    return FPaths::Combine(FPaths::ProjectDir(), TEXT(".mcp.json"));
+    FString RelativePath = TEXT(".mcp.json");
+    if (Name == TEXT("Cursor")) RelativePath = TEXT(".cursor/mcp.json");
+    else if (Name == TEXT("VS Code")) RelativePath = TEXT(".vscode/mcp.json");
+    else if (Name == TEXT("Gemini")) RelativePath = TEXT(".gemini/settings.json");
+    else if (Name == TEXT("Codex")) RelativePath = TEXT(".codex/config.toml");
+    return FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), RelativePath));
+}
+
+bool IsValidJsonFile(const FString& FilePath)
+{
+    FString Contents;
+    if (!FFileHelper::LoadFileToString(Contents, *FilePath))
+    {
+        return false;
+    }
+    TSharedPtr<FJsonObject> Root;
+    const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Contents);
+    return FJsonSerializer::Deserialize(Reader, Root) && Root.IsValid();
+}
+
+enum class ECodexConfigState : uint8 { MissingEntry, AlreadyConfigured, ConflictingEntry, Unreadable };
+
+ECodexConfigState InspectCodexConfiguration(const FString& FilePath, const FString& ExpectedUrl, FString& OutContents)
+{
+    if (!FFileHelper::LoadFileToString(OutContents, *FilePath))
+    {
+        return ECodexConfigState::Unreadable;
+    }
+
+    const FString Header = TEXT("[mcp_servers.unreal-mcp]");
+    const int32 SectionStart = OutContents.Find(Header, ESearchCase::IgnoreCase);
+    if (SectionStart == INDEX_NONE)
+    {
+        return ECodexConfigState::MissingEntry;
+    }
+
+    const int32 NextSection = OutContents.Find(TEXT("["), ESearchCase::CaseSensitive, ESearchDir::FromStart, SectionStart + Header.Len());
+    const FString Section = NextSection == INDEX_NONE
+        ? OutContents.Mid(SectionStart)
+        : OutContents.Mid(SectionStart, NextSection - SectionStart);
+    return Section.Contains(FString::Printf(TEXT("url = \"%s\""), *ExpectedUrl), ESearchCase::IgnoreCase)
+        ? ECodexConfigState::AlreadyConfigured
+        : ECodexConfigState::ConflictingEntry;
 }
 }
 
@@ -335,9 +376,52 @@ FReply SMCPPreflightPanel::DetectInstalledClients()
 FReply SMCPPreflightPanel::GenerateConfiguration()
 {
     if (!SelectedClient.IsValid()) return FReply::Handled();
+    const FString TargetPath = ClientConfigPath(*SelectedClient);
+    const bool bAlreadyExists = IFileManager::Get().FileExists(*TargetPath);
+    if (bAlreadyExists && *SelectedClient == TEXT("Codex"))
+    {
+        const FString ExpectedUrl = GetEndpoint();
+        FString ExistingContents;
+        switch (InspectCodexConfiguration(TargetPath, ExpectedUrl, ExistingContents))
+        {
+        case ECodexConfigState::AlreadyConfigured:
+            LastGeneratedPath = TargetPath;
+            SetupMessage = FString::Printf(TEXT("Setup complete. Codex is already configured for Unreal MCP at %s"), *TargetPath);
+            return FReply::Handled();
+        case ECodexConfigState::MissingEntry:
+        {
+            FString Separator;
+            if (!ExistingContents.IsEmpty() && !ExistingContents.EndsWith(TEXT("\n"))) Separator = TEXT("\n");
+            const FString UnrealSection = FString::Printf(TEXT("%s\n[mcp_servers.unreal-mcp]\nurl = \"%s\"\n"), *Separator, *ExpectedUrl);
+            if (FFileHelper::SaveStringToFile(UnrealSection, *TargetPath, FFileHelper::EEncodingOptions::AutoDetect, &IFileManager::Get(), FILEWRITE_Append))
+            {
+                LastGeneratedPath = TargetPath;
+                SetupMessage = FString::Printf(TEXT("Setup complete. Unreal MCP was added to the existing Codex configuration at %s"), *TargetPath);
+            }
+            else
+            {
+                SetupMessage = FString::Printf(TEXT("The Codex configuration could not be updated: %s. Check file permissions."), *TargetPath);
+            }
+            return FReply::Handled();
+        }
+        case ECodexConfigState::ConflictingEntry:
+            SetupMessage = FString::Printf(TEXT("The existing Unreal MCP entry points to a different address and was not changed. Expected: %s  |  File: %s"), *ExpectedUrl, *TargetPath);
+            return FReply::Handled();
+        default:
+            SetupMessage = FString::Printf(TEXT("The existing Codex configuration could not be read and was not changed: %s"), *TargetPath);
+            return FReply::Handled();
+        }
+    }
+    if (bAlreadyExists && !IsValidJsonFile(TargetPath))
+    {
+        SetupMessage = FString::Printf(TEXT("Existing configuration contains invalid JSON and was not changed: %s. Repair or back up the file before trying again."), *TargetPath);
+        return FReply::Handled();
+    }
     const bool bWritten = UE::ModelContextProtocol::WriteClientConfiguration(ClientFromName(*SelectedClient), UE::ModelContextProtocol::GetServerPortNumber(), UE::ModelContextProtocol::GetServerUrlPath(), FPaths::ProjectDir());
-    LastGeneratedPath = ClientConfigPath(*SelectedClient);
-    SetupMessage = bWritten ? FString::Printf(TEXT("Setup complete. %s configuration created at %s"), **SelectedClient, *LastGeneratedPath) : FString::Printf(TEXT("Configuration was not written. The file may already exist: %s"), *LastGeneratedPath);
+    if (bWritten) LastGeneratedPath = TargetPath;
+    SetupMessage = bWritten
+        ? FString::Printf(TEXT("Setup complete. %s configuration %s at %s"), **SelectedClient, bAlreadyExists ? TEXT("updated") : TEXT("created"), *TargetPath)
+        : FString::Printf(TEXT("Configuration could not be written: %s. Check file permissions and the Output Log."), *TargetPath);
     return FReply::Handled();
 }
 
