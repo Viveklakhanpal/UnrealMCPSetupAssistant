@@ -9,7 +9,6 @@ public:
     virtual void ShutdownModule() override;
 
 private:
-    void RegisterMenus();
     TSharedRef<class SDockTab> SpawnTab(const class FSpawnTabArgs& Args);
     static const FName TabName;
 };
