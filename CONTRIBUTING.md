@@ -13,5 +13,7 @@ The core plugin is intentionally limited to native Unreal MCP setup, server star
 - Avoid shell- or registry-specific behavior in the core module.
 - Build the `UnrealEditor` target and run `MCPSetupAssistant` automation tests before submitting a change.
 - Explain user-facing behavior changes in `CHANGELOG.md`.
+- Never overwrite an existing client configuration when it cannot be parsed safely.
+- Distinguish server verification from AI-client authentication and connectivity in user-facing language.
 
 Please keep pull requests focused and include reproduction steps for fixes.
