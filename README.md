@@ -4,9 +4,9 @@ An open-source Unreal Engine 5.8 Editor plugin that turns Epic's native MCP firs
 
 ## Requirements
 
-- Unreal Engine 5.8 with Epic's experimental Unreal MCP, Toolset Registry, All Toolsets, and Terminal plugins.
+- Unreal Engine 5.8 with Epic's experimental Unreal MCP, Toolset Registry, and All Toolsets plugins. This assistant also enables Epic's optional Terminal plugin for the in-editor CLI workflow.
 - A supported AI client if you want the assistant to generate client configuration.
-- Some command-line AI clients require Node.js when launched from Unreal Terminal.
+- Client requirements vary. Node.js is not required by Unreal MCP, but some AI clients or installation methods require it; follow the selected client's documentation.
 
 Epic's native experimental plugins are engine components and are not included in this repository. The setup assistant declares them as dependencies so Unreal can enable them with the assistant; the first activation may require an editor restart.
 
@@ -35,7 +35,7 @@ The assistant uses UE 5.8's native server settings and APIs. Verification sends 
 - Gemini
 - Custom command identification (manual configuration only)
 
-Known clients and Node.js are detected from the editor process environment. Detection confirms only that a command is available; it does not validate authentication, account state, or client compatibility.
+Known clients and Node.js are detected from the editor process environment. Node.js detection is informational and does not imply that every client requires it. Detection confirms only that a command is available; it does not validate authentication, account state, or client compatibility.
 
 ## Configuration safety
 

@@ -240,7 +240,7 @@ void SMCPPreflightPanel::Construct(const FArguments&)
                     SNew(SVerticalBox)
                     + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(LOCTEXT("Step4", "4. Create client configuration")).TextStyle(FAppStyle::Get(), "HeadingExtraSmall")]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
-                    [SNew(STextBlock).Text(LOCTEXT("NodeRequirement", "Prerequisite: Some command-line AI clients require Node.js when launched from Unreal Terminal.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                    [SNew(STextBlock).Text(LOCTEXT("NodeRequirement", "Client requirements vary. Node.js is not required by Unreal MCP, but some AI clients or installation methods require it.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)
                     [SNew(SButton).Text(LOCTEXT("DetectClients", "Detect Installed Clients")).OnClicked(this, &SMCPPreflightPanel::DetectInstalledClients)]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)

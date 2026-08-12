@@ -10,5 +10,6 @@
 - Added live status for Unreal MCP, Toolset Registry, All Toolsets, and Unreal Terminal.
 - Added safe reuse and merge behavior for existing client configuration files.
 - Clarified that preflight verifies Unreal's server, not AI-client authentication or connectivity.
+- Clarified that Node.js is client-dependent and is not an Unreal MCP requirement.
 - Hardened MCP session retries and tools/list failure diagnostics.
 - Added endpoint copy and project-folder actions.
