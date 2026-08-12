@@ -31,7 +31,7 @@ public:
     virtual void Evaluate(const FMCPPreflightContext& C, TArray<FMCPDiagnostic>& Out) const override
     {
         if (!C.bTransportSucceeded)
-            Add(Out, EMCPDiagnosticSeverity::Error, TEXT("transport.unreachable"), TEXT("MCP server could not be reached"), TEXT("No usable HTTP response was received."), TEXT("Start the server, verify its port, and check the endpoint in Project Settings > Plugins > MCP Preflight."));
+            Add(Out, EMCPDiagnosticSeverity::Error, TEXT("transport.unreachable"), TEXT("MCP server could not be reached"), TEXT("No usable HTTP response was received."), TEXT("Start the native MCP server, then verify the connection again."));
         else if (C.HttpStatus < 200 || C.HttpStatus >= 300)
             Add(Out, EMCPDiagnosticSeverity::Error, TEXT("transport.http_status"), FString::Printf(TEXT("Server returned HTTP %d"), C.HttpStatus), TEXT("The endpoint responded but rejected the MCP initialize request."), TEXT("Verify that the URL points to the Streamable HTTP MCP route."));
     }
@@ -44,10 +44,17 @@ public:
     {
         if (C.bTransportSucceeded && C.HttpStatus >= 200 && C.HttpStatus < 300 && !C.bInitializeSucceeded)
             Add(Out, EMCPDiagnosticSeverity::Error, TEXT("protocol.initialize"), TEXT("Invalid MCP initialize response"), TEXT("The response did not contain a valid JSON-RPC result."), TEXT("Check server logs and MCP protocol compatibility."));
-        if (C.bInitializeSucceeded && C.ToolNames.IsEmpty())
+        if (C.bInitializeSucceeded && !C.bToolsListSucceeded)
+        {
+            const FString Detail = C.ToolsListHttpStatus > 0
+                ? FString::Printf(TEXT("The tools/list request returned HTTP %d or an invalid JSON-RPC result."), C.ToolsListHttpStatus)
+                : TEXT("No usable tools/list response was received.");
+            Add(Out, EMCPDiagnosticSeverity::Error, TEXT("tools.list.failed"), TEXT("Tool discovery failed"), Detail, TEXT("Check the Output Log for MCP errors, then verify again."));
+        }
+        else if (C.bInitializeSucceeded && C.ToolNames.IsEmpty())
             Add(Out, EMCPDiagnosticSeverity::Warning, TEXT("tools.empty"), TEXT("No tools were discovered"), TEXT("The server initialized successfully but tools/list returned no tools."));
 
-        if (C.bInitializeSucceeded && !C.ToolNames.IsEmpty())
+        if (C.bInitializeSucceeded && C.bToolsListSucceeded && !C.ToolNames.IsEmpty())
         {
             bool bHasListToolsets = false, bHasDescribeToolset = false, bHasCallTool = false;
             for (const FString& Name : C.ToolNames)

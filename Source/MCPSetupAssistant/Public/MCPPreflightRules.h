@@ -19,6 +19,8 @@ struct FMCPPreflightContext
     bool bTransportSucceeded = false;
     int32 HttpStatus = 0;
     bool bInitializeSucceeded = false;
+    bool bToolsListSucceeded = false;
+    int32 ToolsListHttpStatus = 0;
     FString ServerName;
     FString ServerVersion;
     TArray<FString> ToolNames;

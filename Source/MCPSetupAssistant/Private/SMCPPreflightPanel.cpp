@@ -293,7 +293,7 @@ void SMCPPreflightPanel::RefreshSetupState()
     SetupMessage = TEXT("Complete the steps above. Configuration is generated using Epic's native UE 5.8 implementation.");
 }
 
-bool SMCPPreflightPanel::CanGenerateConfiguration() const { return State == EState::Passed && SelectedClient.IsValid() && *SelectedClient != TEXT("Custom..."); }
+bool SMCPPreflightPanel::CanGenerateConfiguration() const { return IsServerRunning() && State == EState::Passed && SelectedClient.IsValid() && *SelectedClient != TEXT("Custom..."); }
 
 FReply SMCPPreflightPanel::DetectInstalledClients()
 {

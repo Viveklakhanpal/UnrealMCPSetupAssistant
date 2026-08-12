@@ -28,6 +28,7 @@ void FMCPPreflightClient::Run(const FString& Endpoint, float TimeoutSeconds, FMC
 {
     Cancel();
     EndpointUrl = Endpoint.TrimStartAndEnd();
+    SessionId.Reset();
     Timeout = TimeoutSeconds;
     OnComplete = MoveTemp(Completion);
     Context = {};
@@ -100,18 +101,22 @@ void FMCPPreflightClient::SendToolsList()
 
 void FMCPPreflightClient::OnToolsList(FHttpRequestPtr, FHttpResponsePtr Response, bool bConnectedSuccessfully)
 {
+    Context.ToolsListHttpStatus = Response.IsValid() ? Response->GetResponseCode() : 0;
     if (bConnectedSuccessfully && Response.IsValid() && EHttpResponseCodes::IsOk(Response->GetResponseCode()))
     {
         const TSharedPtr<FJsonObject> Root = ParseJsonRpc(Response->GetContentAsString());
         const TSharedPtr<FJsonObject>* Result = nullptr;
         const TArray<TSharedPtr<FJsonValue>>* Tools = nullptr;
         if (Root.IsValid() && Root->TryGetObjectField(TEXT("result"), Result) && Result && (*Result)->TryGetArrayField(TEXT("tools"), Tools) && Tools)
+        {
+            Context.bToolsListSucceeded = true;
             for (const TSharedPtr<FJsonValue>& Value : *Tools)
             {
                 const TSharedPtr<FJsonObject> Tool = Value->AsObject();
                 FString Name;
                 if (Tool.IsValid() && Tool->TryGetStringField(TEXT("name"), Name)) Context.ToolNames.Add(Name);
             }
+        }
     }
     Finish();
 }
