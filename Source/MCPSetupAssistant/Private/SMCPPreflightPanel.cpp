@@ -225,6 +225,8 @@ void SMCPPreflightPanel::Construct(const FArguments&)
                     + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(LOCTEXT("Step3", "3. Verify connection")).TextStyle(FAppStyle::Get(), "HeadingExtraSmall")]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
                     [SNew(STextBlock).Text(LOCTEXT("VerifyHint", "Runs the MCP initialize handshake and tools/list against Unreal's active endpoint." )).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                    [SNew(STextBlock).Text(LOCTEXT("VerifyBoundary", "This verifies Unreal's MCP server and advertised tools. It does not verify AI-client sign-in or the client's connection to Unreal.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
                     [SNew(SButton).Text(LOCTEXT("Verify", "Verify MCP")).IsEnabled_Lambda([this] { return IsServerRunning() && CanRun(); }).OnClicked(this, &SMCPPreflightPanel::RunPreflight)]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)[SAssignNew(ResultsBox, SVerticalBox)]
@@ -376,6 +378,11 @@ FReply SMCPPreflightPanel::DetectInstalledClients()
 FReply SMCPPreflightPanel::GenerateConfiguration()
 {
     if (!SelectedClient.IsValid()) return FReply::Handled();
+    if (*SelectedClient == TEXT("Custom..."))
+    {
+        SetupMessage = TEXT("Automatic configuration is not available for custom clients. Copy the MCP address and add it using the client's own configuration instructions.");
+        return FReply::Handled();
+    }
     const FString TargetPath = ClientConfigPath(*SelectedClient);
     const bool bAlreadyExists = IFileManager::Get().FileExists(*TargetPath);
     if (bAlreadyExists && *SelectedClient == TEXT("Codex"))
@@ -432,6 +439,7 @@ TSharedRef<SWidget> SMCPPreflightPanel::MakeClientWidget(TSharedPtr<FString> Ite
 void SMCPPreflightPanel::OnClientSelected(TSharedPtr<FString> Item, ESelectInfo::Type)
 {
     SelectedClient = Item;
+    LastGeneratedPath.Reset();
     if (SelectedClientText.IsValid() && Item.IsValid()) SelectedClientText->SetText(FText::FromString(*Item));
     if (Item.IsValid() && *Item == TEXT("Custom...")) SetupMessage = TEXT("Enter a custom client command. Automatic configuration generation is available only for supported clients in UE 5.8.");
 }
@@ -442,6 +450,7 @@ FText SMCPPreflightPanel::GetPrimaryActionText() const
 {
     if (!IsServerRunning()) return LOCTEXT("PrimaryStart", "Start MCP Server");
     if (State != EState::Passed) return LOCTEXT("PrimaryVerify", "Verify MCP Connection");
+    if (SelectedClient.IsValid() && *SelectedClient == TEXT("Custom...")) return LOCTEXT("PrimaryCustom", "Custom Client Selected");
     if (LastGeneratedPath.IsEmpty()) return LOCTEXT("PrimaryGenerate", "Generate Client Configuration");
     return LOCTEXT("PrimaryComplete", "Setup Complete");
 }
@@ -450,6 +459,11 @@ FReply SMCPPreflightPanel::RunPrimaryAction()
 {
     if (!IsServerRunning()) return StartServer();
     if (State != EState::Passed) return RunPreflight();
+    if (SelectedClient.IsValid() && *SelectedClient == TEXT("Custom..."))
+    {
+        SetupMessage = TEXT("Copy the MCP address and follow the custom client's instructions to add an HTTP MCP server.");
+        return FReply::Handled();
+    }
     if (LastGeneratedPath.IsEmpty()) return GenerateConfiguration();
     return OpenProjectFolder();
 }
