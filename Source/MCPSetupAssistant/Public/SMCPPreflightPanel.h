@@ -7,6 +7,7 @@
 class FMCPPreflightClient;
 class SVerticalBox;
 class STextBlock;
+class SEditableTextBox;
 
 class SMCPPreflightPanel : public SCompoundWidget
 {
@@ -21,6 +22,7 @@ private:
     FReply StartServer();
     FReply EnableAutoStart();
     FReply GenerateConfiguration();
+    FReply DetectInstalledClients();
     FReply CopyEndpoint();
     FReply OpenProjectFolder();
     void HandleComplete(const FMCPPreflightContext& Result);
@@ -33,6 +35,7 @@ private:
     FReply RunPrimaryAction();
     TSharedRef<SWidget> MakeClientWidget(TSharedPtr<FString> Item) const;
     void OnClientSelected(TSharedPtr<FString> Item, ESelectInfo::Type SelectInfo);
+    void OnCustomCommandChanged(const FText& Text);
     FText GetStatusText() const;
     FSlateColor GetStatusColor() const;
     bool CanRun() const;
@@ -40,10 +43,13 @@ private:
     TSharedPtr<FMCPPreflightClient> Client;
     TSharedPtr<SVerticalBox> ResultsBox;
     TSharedPtr<STextBlock> SelectedClientText;
+    TSharedPtr<SEditableTextBox> CustomCommandTextBox;
     TArray<TSharedPtr<FString>> ClientOptions;
     TSharedPtr<FString> SelectedClient;
     FString LastGeneratedPath;
     FString SetupMessage;
+    FString DetectionMessage;
+    FString CustomCommand;
     FMCPPreflightRuleRegistry RuleRegistry;
     FMCPPreflightContext Context;
     TArray<FMCPDiagnostic> Diagnostics;

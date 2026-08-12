@@ -6,7 +6,9 @@
 #include "ModelContextProtocolServer.h"
 #include "ModelContextProtocolSettings.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformApplicationMisc.h"
+#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
@@ -14,7 +16,9 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -70,6 +74,30 @@ bool AreRequiredPluginsReady()
         && GetRequiredPluginStatus(TEXT("Terminal"), TEXT("Terminal")).bLoaded;
 }
 
+bool IsCommandAvailable(const FString& Command)
+{
+    TArray<FString> PathDirectories;
+    FPlatformMisc::GetEnvironmentVariable(TEXT("PATH")).ParseIntoArray(PathDirectories, FPlatformMisc::GetPathVarDelimiter(), true);
+
+#if PLATFORM_WINDOWS
+    static const TCHAR* Extensions[] = { TEXT(""), TEXT(".exe"), TEXT(".cmd"), TEXT(".bat") };
+#else
+    static const TCHAR* Extensions[] = { TEXT("") };
+#endif
+
+    for (const FString& Directory : PathDirectories)
+    {
+        for (const TCHAR* Extension : Extensions)
+        {
+            if (IFileManager::Get().FileExists(*FPaths::Combine(Directory, Command + Extension)))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 EModelContextProtocolClient ClientFromName(const FString& Name)
 {
     if (Name == TEXT("Cursor")) return EModelContextProtocolClient::Cursor;
@@ -92,8 +120,9 @@ FString ClientConfigPath(const FString& Name)
 void SMCPPreflightPanel::Construct(const FArguments&)
 {
     Client = MakeShared<FMCPPreflightClient>();
-    for (const TCHAR* Name : { TEXT("Codex"), TEXT("Claude Code"), TEXT("Cursor"), TEXT("VS Code"), TEXT("Gemini") }) ClientOptions.Add(MakeShared<FString>(Name));
+    for (const TCHAR* Name : { TEXT("Codex"), TEXT("Claude Code"), TEXT("Cursor"), TEXT("VS Code"), TEXT("Gemini"), TEXT("Custom...") }) ClientOptions.Add(MakeShared<FString>(Name));
     SelectedClient = ClientOptions[0];
+    DetectionMessage = TEXT("Installed clients have not been checked yet.");
 
     ChildSlot
     [
@@ -168,6 +197,12 @@ void SMCPPreflightPanel::Construct(const FArguments&)
                     SNew(SVerticalBox)
                     + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(LOCTEXT("Step4", "4. Create client configuration")).TextStyle(FAppStyle::Get(), "HeadingExtraSmall")]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                    [SNew(STextBlock).Text(LOCTEXT("NodeRequirement", "Prerequisite: Some command-line AI clients require Node.js when launched from Unreal Terminal.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)
+                    [SNew(SButton).Text(LOCTEXT("DetectClients", "Detect Installed Clients")).OnClicked(this, &SMCPPreflightPanel::DetectInstalledClients)]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)
+                    [SNew(STextBlock).Text_Lambda([this] { return FText::FromString(DetectionMessage); }).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
                     [
                         SNew(SHorizontalBox)
                         + SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 8, 0)[SNew(STextBlock).Text(LOCTEXT("ChooseClient", "MCP client"))]
@@ -177,6 +212,12 @@ void SMCPPreflightPanel::Construct(const FArguments&)
                             .OnGenerateWidget(this, &SMCPPreflightPanel::MakeClientWidget).OnSelectionChanged(this, &SMCPPreflightPanel::OnClientSelected)
                             [SAssignNew(SelectedClientText, STextBlock).Text(FText::FromString(*SelectedClient))]
                         ]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                    [
+                        SNew(SBox)
+                        .Visibility_Lambda([this] { return SelectedClient.IsValid() && *SelectedClient == TEXT("Custom...") ? EVisibility::Visible : EVisibility::Collapsed; })
+                        [SAssignNew(CustomCommandTextBox, SEditableTextBox).HintText(LOCTEXT("CustomCommandHint", "Custom client command, for example: my-ai-cli")).OnTextChanged(this, &SMCPPreflightPanel::OnCustomCommandChanged)]
                     ]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
                     [
@@ -252,7 +293,44 @@ void SMCPPreflightPanel::RefreshSetupState()
     SetupMessage = TEXT("Complete the steps above. Configuration is generated using Epic's native UE 5.8 implementation.");
 }
 
-bool SMCPPreflightPanel::CanGenerateConfiguration() const { return State == EState::Passed && SelectedClient.IsValid(); }
+bool SMCPPreflightPanel::CanGenerateConfiguration() const { return State == EState::Passed && SelectedClient.IsValid() && *SelectedClient != TEXT("Custom..."); }
+
+FReply SMCPPreflightPanel::DetectInstalledClients()
+{
+    struct FClientCommand { const TCHAR* Name; const TCHAR* Command; };
+    static const FClientCommand KnownClients[] =
+    {
+        { TEXT("Codex"), TEXT("codex") },
+        { TEXT("Claude Code"), TEXT("claude") },
+        { TEXT("Cursor"), TEXT("cursor") },
+        { TEXT("VS Code"), TEXT("code") },
+        { TEXT("Gemini"), TEXT("gemini") }
+    };
+
+    TArray<FString> DetectedClients;
+    for (const FClientCommand& ClientCommand : KnownClients)
+    {
+        if (IsCommandAvailable(ClientCommand.Command))
+        {
+            DetectedClients.Add(ClientCommand.Name);
+        }
+    }
+
+    const bool bNodeFound = IsCommandAvailable(TEXT("node"));
+    const FString ClientsText = DetectedClients.IsEmpty() ? TEXT("No supported AI client commands found") : FString::Join(DetectedClients, TEXT(", "));
+    DetectionMessage = FString::Printf(TEXT("Node.js: %s  |  Detected clients: %s"), bNodeFound ? TEXT("Found") : TEXT("Not found"), *ClientsText);
+
+    if (!DetectedClients.IsEmpty())
+    {
+        const FString& RecommendedClient = DetectedClients[0];
+        const TSharedPtr<FString>* Option = ClientOptions.FindByPredicate([&RecommendedClient](const TSharedPtr<FString>& Item) { return Item.IsValid() && *Item == RecommendedClient; });
+        if (Option)
+        {
+            OnClientSelected(*Option, ESelectInfo::Direct);
+        }
+    }
+    return FReply::Handled();
+}
 
 FReply SMCPPreflightPanel::GenerateConfiguration()
 {
@@ -267,7 +345,14 @@ FReply SMCPPreflightPanel::CopyEndpoint() { FPlatformApplicationMisc::ClipboardC
 FReply SMCPPreflightPanel::OpenProjectFolder() { FPlatformProcess::ExploreFolder(*FPaths::ConvertRelativePathToFull(FPaths::ProjectDir())); return FReply::Handled(); }
 
 TSharedRef<SWidget> SMCPPreflightPanel::MakeClientWidget(TSharedPtr<FString> Item) const { return SNew(STextBlock).Text(FText::FromString(Item.IsValid() ? *Item : FString())); }
-void SMCPPreflightPanel::OnClientSelected(TSharedPtr<FString> Item, ESelectInfo::Type) { SelectedClient = Item; if (SelectedClientText.IsValid() && Item.IsValid()) SelectedClientText->SetText(FText::FromString(*Item)); }
+void SMCPPreflightPanel::OnClientSelected(TSharedPtr<FString> Item, ESelectInfo::Type)
+{
+    SelectedClient = Item;
+    if (SelectedClientText.IsValid() && Item.IsValid()) SelectedClientText->SetText(FText::FromString(*Item));
+    if (Item.IsValid() && *Item == TEXT("Custom...")) SetupMessage = TEXT("Enter a custom client command. Automatic configuration generation is available only for supported clients in UE 5.8.");
+}
+
+void SMCPPreflightPanel::OnCustomCommandChanged(const FText& Text) { CustomCommand = Text.ToString().TrimStartAndEnd(); }
 
 FText SMCPPreflightPanel::GetPrimaryActionText() const
 {
