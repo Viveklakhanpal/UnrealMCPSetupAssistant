@@ -1,0 +1,31 @@
+# Unreal build output
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+
+# IDE and generated project files
+.vs/
+.vscode/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+
+# Compiled and packaged artifacts
+*.dll
+*.exe
+*.lib
+*.obj
+*.pdb
+*.exp
+*.modules
+*.target
+*.zip
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+Desktop.ini

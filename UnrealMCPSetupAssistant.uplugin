@@ -1,0 +1,22 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "0.1.0",
+  "FriendlyName": "Unreal MCP Setup Assistant",
+  "Description": "Guided setup, verification, and client configuration for Unreal Engine's native MCP server.",
+  "Category": "Editor",
+  "CreatedBy": "Unreal MCP Setup Assistant contributors",
+  "CanContainContent": false,
+  "EnabledByDefault": false,
+  "Modules": [
+    {
+      "Name": "MCPSetupAssistant",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    { "Name": "ModelContextProtocol", "Enabled": true },
+    { "Name": "AllToolsets", "Enabled": true }
+  ]
+}
