@@ -8,7 +8,9 @@
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformProcess.h"
+#include "Interfaces/IPluginManager.h"
 #include "Misc/Paths.h"
+#include "Modules/ModuleManager.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboBox.h"
@@ -21,8 +23,52 @@
 
 namespace
 {
-FText ReadyText(bool bReady) { return bReady ? LOCTEXT("Ready", "Ready") : LOCTEXT("Missing", "Missing"); }
 FSlateColor ReadyColor(bool bReady) { return bReady ? FLinearColor(0.2f, 0.75f, 0.35f) : FLinearColor(0.9f, 0.2f, 0.15f); }
+
+struct FRequiredPluginStatus
+{
+    bool bAvailable = false;
+    bool bEnabled = false;
+    bool bLoaded = false;
+};
+
+FRequiredPluginStatus GetRequiredPluginStatus(const TCHAR* PluginName, const TCHAR* ModuleName = nullptr)
+{
+    FRequiredPluginStatus Status;
+    const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(PluginName);
+    Status.bAvailable = Plugin.IsValid();
+    Status.bEnabled = Status.bAvailable && Plugin->IsEnabled();
+    Status.bLoaded = Status.bEnabled && (!ModuleName || FModuleManager::Get().IsModuleLoaded(ModuleName));
+    return Status;
+}
+
+FText PluginStatusText(const TCHAR* PluginName, const TCHAR* ModuleName = nullptr)
+{
+    const FRequiredPluginStatus Status = GetRequiredPluginStatus(PluginName, ModuleName);
+    if (!Status.bAvailable)
+    {
+        return LOCTEXT("PluginUnavailable", "Unavailable");
+    }
+    if (!Status.bEnabled || !Status.bLoaded)
+    {
+        return LOCTEXT("PluginRestartRequired", "Restart required");
+    }
+    return LOCTEXT("PluginEnabled", "Enabled");
+}
+
+FSlateColor PluginStatusColor(const TCHAR* PluginName, const TCHAR* ModuleName = nullptr)
+{
+    const FRequiredPluginStatus Status = GetRequiredPluginStatus(PluginName, ModuleName);
+    return ReadyColor(Status.bAvailable && Status.bEnabled && Status.bLoaded);
+}
+
+bool AreRequiredPluginsReady()
+{
+    return GetRequiredPluginStatus(TEXT("ModelContextProtocol"), TEXT("ModelContextProtocol")).bLoaded
+        && GetRequiredPluginStatus(TEXT("ToolsetRegistry"), TEXT("ToolsetRegistry")).bLoaded
+        && GetRequiredPluginStatus(TEXT("AllToolsets")).bLoaded
+        && GetRequiredPluginStatus(TEXT("Terminal"), TEXT("Terminal")).bLoaded;
+}
 
 EModelContextProtocolClient ClientFromName(const FString& Name)
 {
@@ -67,11 +113,15 @@ void SMCPPreflightPanel::Construct(const FArguments&)
                     SNew(SVerticalBox)
                     + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(LOCTEXT("Step1", "1. Required Unreal plugins")).TextStyle(FAppStyle::Get(), "HeadingExtraSmall")]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 2)
-                    [SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).Text(LOCTEXT("NativeMCP", "Unreal MCP"))] + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text(LOCTEXT("Enabled", "Enabled")).ColorAndOpacity(ReadyColor(true))]]
+                    [SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).Text(LOCTEXT("NativeMCP", "Unreal MCP"))] + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([] { return PluginStatusText(TEXT("ModelContextProtocol"), TEXT("ModelContextProtocol")); }).ColorAndOpacity_Lambda([] { return PluginStatusColor(TEXT("ModelContextProtocol"), TEXT("ModelContextProtocol")); })]]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
-                    [SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).Text(LOCTEXT("AllToolsets", "All Toolsets + Toolset Registry"))] + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text(LOCTEXT("Enabled2", "Enabled")).ColorAndOpacity(ReadyColor(true))]]
+                    [SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).Text(LOCTEXT("ToolsetRegistry", "Toolset Registry"))] + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([] { return PluginStatusText(TEXT("ToolsetRegistry"), TEXT("ToolsetRegistry")); }).ColorAndOpacity_Lambda([] { return PluginStatusColor(TEXT("ToolsetRegistry"), TEXT("ToolsetRegistry")); })]]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
+                    [SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).Text(LOCTEXT("AllToolsets", "All Toolsets"))] + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([] { return PluginStatusText(TEXT("AllToolsets")); }).ColorAndOpacity_Lambda([] { return PluginStatusColor(TEXT("AllToolsets")); })]]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 2)
+                    [SNew(SHorizontalBox) + SHorizontalBox::Slot().FillWidth(1)[SNew(STextBlock).Text(LOCTEXT("Terminal", "Unreal Terminal"))] + SHorizontalBox::Slot().AutoWidth()[SNew(STextBlock).Text_Lambda([] { return PluginStatusText(TEXT("Terminal"), TEXT("Terminal")); }).ColorAndOpacity_Lambda([] { return PluginStatusColor(TEXT("Terminal"), TEXT("Terminal")); })]]
                     + SVerticalBox::Slot().AutoHeight().Padding(0, 7, 0, 0)
-                    [SNew(STextBlock).Text(LOCTEXT("DependencyHint", "These are enabled as dependencies of this setup assistant. A restart may be requested when the assistant is first installed.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                    [SNew(STextBlock).Text_Lambda([] { return AreRequiredPluginsReady() ? LOCTEXT("DependenciesReady", "All required Unreal components are active.") : LOCTEXT("DependencyHint", "The assistant enables these components automatically. Restart Unreal Editor to finish activation; unavailable components require Unreal Engine 5.8."); }).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
                 ]
             ]
 

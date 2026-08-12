@@ -17,6 +17,7 @@
   ],
   "Plugins": [
     { "Name": "ModelContextProtocol", "Enabled": true },
-    { "Name": "AllToolsets", "Enabled": true }
+    { "Name": "AllToolsets", "Enabled": true },
+    { "Name": "Terminal", "Enabled": true }
   ]
 }
