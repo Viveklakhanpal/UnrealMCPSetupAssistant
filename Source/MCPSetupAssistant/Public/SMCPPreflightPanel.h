@@ -25,10 +25,14 @@ private:
     FReply DetectInstalledClients();
     FReply CopyEndpoint();
     FReply OpenProjectFolder();
+    FReply CopyTerminalCommand(int32 CommandIndex);
+    FReply OpenTerminalSettings();
     void HandleComplete(const FMCPPreflightContext& Result);
     void RefreshSetupState();
     void RebuildResults();
     FString GetEndpoint() const;
+    FString GetClientLaunchCommand() const;
+    TArray<FString> GetTerminalCommands() const;
     bool IsServerRunning() const;
     bool CanGenerateConfiguration() const;
     FText GetPrimaryActionText() const;

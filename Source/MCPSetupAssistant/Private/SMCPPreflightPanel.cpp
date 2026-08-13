@@ -11,6 +11,7 @@
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
 #include "Interfaces/IPluginManager.h"
+#include "ISettingsModule.h"
 #include "Misc/Paths.h"
 #include "Misc/FileHelper.h"
 #include "Modules/ModuleManager.h"
@@ -273,6 +274,41 @@ void SMCPPreflightPanel::Construct(const FArguments&)
                 ]
             ]
 
+            + SVerticalBox::Slot().AutoHeight().Padding(16, 8, 16, 4)
+            [
+                SNew(SBorder).Padding(12).BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+                [
+                    SNew(SVerticalBox)
+                    + SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(LOCTEXT("Step5", "5. Optional: Launch from Unreal Terminal")).TextStyle(FAppStyle::Get(), "HeadingExtraSmall")]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                    [SNew(STextBlock).Text(LOCTEXT("TerminalSetupHint", "Use this only if you want the selected command-line AI client to open inside Unreal Editor. In Editor Preferences > General > Terminal, add each command as a separate Startup Commands array entry. Keep the exact order shown below.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                    [SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Text_Lambda([this] { return FText::FromString(FString::Printf(TEXT("1. %s"), *GetTerminalCommands()[0])); }).AutoWrapText(true)]
+                        + SHorizontalBox::Slot().AutoWidth().Padding(8, 0, 0, 0)[SNew(SButton).Text(LOCTEXT("CopyTerminalCommand1", "Copy 1")).OnClicked_Lambda([this] { return CopyTerminalCommand(0); })]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                    [SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Text_Lambda([this] { return FText::FromString(FString::Printf(TEXT("2. %s"), *GetTerminalCommands()[1])); }).AutoWrapText(true)]
+                        + SHorizontalBox::Slot().AutoWidth().Padding(8, 0, 0, 0)[SNew(SButton).Text(LOCTEXT("CopyTerminalCommand2", "Copy 2")).OnClicked_Lambda([this] { return CopyTerminalCommand(1); })]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                    [SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().FillWidth(1).VAlign(VAlign_Center)[SNew(STextBlock).Text_Lambda([this] { const FString Command = GetTerminalCommands()[2]; return FText::FromString(FString::Printf(TEXT("3. %s"), Command.IsEmpty() ? TEXT("Enter a custom client command above") : *Command)); }).AutoWrapText(true)]
+                        + SHorizontalBox::Slot().AutoWidth().Padding(8, 0, 0, 0)[SNew(SButton).Text(LOCTEXT("CopyTerminalCommand3", "Copy 3")).IsEnabled_Lambda([this] { return !GetClientLaunchCommand().IsEmpty(); }).OnClicked_Lambda([this] { return CopyTerminalCommand(2); })]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                    [
+                        SNew(SHorizontalBox)
+                        + SHorizontalBox::Slot().AutoWidth()[SNew(SButton).Text(LOCTEXT("OpenTerminalSettings", "Open Terminal Settings")).OnClicked(this, &SMCPPreflightPanel::OpenTerminalSettings)]
+                    ]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+                    [SNew(STextBlock).Text(LOCTEXT("ExternalClientHint", "Using a GUI client or external IDE? Skip this step and open this project as its workspace. Unreal Terminal setup is not required.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                    + SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 0)
+                    [SNew(STextBlock).Text(LOCTEXT("ReopenTerminalHint", "After adding the commands, close and reopen the Terminal panel.")).AutoWrapText(true).ColorAndOpacity(FSlateColor::UseSubduedForeground())]
+                ]
+            ]
+
             + SVerticalBox::Slot().AutoHeight().Padding(16, 12)
             [SNew(SButton).HAlign(HAlign_Center).Text(this, &SMCPPreflightPanel::GetPrimaryActionText).OnClicked(this, &SMCPPreflightPanel::RunPrimaryAction)]
         ]
@@ -286,6 +322,29 @@ SMCPPreflightPanel::~SMCPPreflightPanel() { if (Client.IsValid()) Client->Cancel
 FString SMCPPreflightPanel::GetEndpoint() const
 {
     return FString::Printf(TEXT("http://127.0.0.1:%u%s"), UE::ModelContextProtocol::GetServerPortNumber(), *UE::ModelContextProtocol::GetServerUrlPath());
+}
+
+FString SMCPPreflightPanel::GetClientLaunchCommand() const
+{
+    if (!SelectedClient.IsValid()) return FString();
+    if (*SelectedClient == TEXT("Codex")) return TEXT("codex");
+    if (*SelectedClient == TEXT("Claude Code")) return TEXT("claude");
+    if (*SelectedClient == TEXT("Cursor")) return TEXT("cursor");
+    if (*SelectedClient == TEXT("VS Code")) return TEXT("code");
+    if (*SelectedClient == TEXT("Gemini")) return TEXT("gemini");
+    return CustomCommand;
+}
+
+TArray<FString> SMCPPreflightPanel::GetTerminalCommands() const
+{
+    FString ProjectDirectory = FPaths::ConvertRelativePathToFull(FPaths::ProjectDir());
+    FPaths::NormalizeDirectoryName(ProjectDirectory);
+#if PLATFORM_WINDOWS
+    FPaths::MakePlatformFilename(ProjectDirectory);
+    return { TEXT("set TERM=xterm-256color"), FString::Printf(TEXT("cd /d \"%s\""), *ProjectDirectory), GetClientLaunchCommand() };
+#else
+    return { TEXT("export TERM=xterm-256color"), FString::Printf(TEXT("cd \"%s\""), *ProjectDirectory), GetClientLaunchCommand() };
+#endif
 }
 
 bool SMCPPreflightPanel::IsServerRunning() const
@@ -434,6 +493,22 @@ FReply SMCPPreflightPanel::GenerateConfiguration()
 
 FReply SMCPPreflightPanel::CopyEndpoint() { FPlatformApplicationMisc::ClipboardCopy(*GetEndpoint()); SetupMessage = TEXT("MCP address copied to the clipboard."); return FReply::Handled(); }
 FReply SMCPPreflightPanel::OpenProjectFolder() { FPlatformProcess::ExploreFolder(*FPaths::ConvertRelativePathToFull(FPaths::ProjectDir())); return FReply::Handled(); }
+FReply SMCPPreflightPanel::CopyTerminalCommand(int32 CommandIndex)
+{
+    const TArray<FString> Commands = GetTerminalCommands();
+    if (Commands.IsValidIndex(CommandIndex) && !Commands[CommandIndex].IsEmpty())
+    {
+        FPlatformApplicationMisc::ClipboardCopy(*Commands[CommandIndex]);
+        SetupMessage = FString::Printf(TEXT("Terminal command %d copied. Paste it into its own Startup Commands array entry."), CommandIndex + 1);
+    }
+    return FReply::Handled();
+}
+
+FReply SMCPPreflightPanel::OpenTerminalSettings()
+{
+    FModuleManager::LoadModuleChecked<ISettingsModule>(TEXT("Settings")).ShowViewer(TEXT("Editor"), TEXT("General"), TEXT("TerminalSettings"));
+    return FReply::Handled();
+}
 
 TSharedRef<SWidget> SMCPPreflightPanel::MakeClientWidget(TSharedPtr<FString> Item) const { return SNew(STextBlock).Text(FText::FromString(Item.IsValid() ? *Item : FString())); }
 void SMCPPreflightPanel::OnClientSelected(TSharedPtr<FString> Item, ESelectInfo::Type)

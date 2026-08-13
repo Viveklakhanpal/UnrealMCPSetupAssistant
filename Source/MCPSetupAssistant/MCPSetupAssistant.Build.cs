@@ -6,6 +6,6 @@ public class MCPSetupAssistant : ModuleRules
     {
         PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
         PublicDependencyModuleNames.AddRange(new[] { "Core", "CoreUObject", "Engine", "HTTP", "Json", "JsonUtilities" });
-        PrivateDependencyModuleNames.AddRange(new[] { "ApplicationCore", "DeveloperSettings", "InputCore", "ModelContextProtocol", "ModelContextProtocolEngine", "Projects", "Slate", "SlateCore", "ToolMenus", "UnrealEd" });
+        PrivateDependencyModuleNames.AddRange(new[] { "ApplicationCore", "DeveloperSettings", "InputCore", "ModelContextProtocol", "ModelContextProtocolEngine", "Projects", "Settings", "Slate", "SlateCore", "ToolMenus", "UnrealEd" });
     }
 }

@@ -21,6 +21,7 @@ Copy the `UnrealMCPSetupAssistant` folder into your project's `Plugins` director
 3. Start the native server (and optionally enable auto-start).
 4. Verify the MCP handshake and toolset discovery.
 5. Detect or choose an MCP client and generate its project configuration.
+6. Optionally copy the three displayed startup commands into **Editor Preferences > General > Terminal** to launch a command-line client inside Unreal. Add each command as a separate array entry and keep the exact displayed order. GUI clients and external IDEs can skip this step and open the project as their workspace.
 
 The assistant uses UE 5.8's native server settings and APIs. Verification sends `initialize`, `notifications/initialized`, and `tools/list`, preserves the `Mcp-Session-Id`, and checks the toolset discovery surface.
 
@@ -36,6 +37,8 @@ The assistant uses UE 5.8's native server settings and APIs. Verification sends 
 - Custom command identification (manual configuration only)
 
 Known clients and Node.js are detected from the editor process environment. Node.js detection is informational and does not imply that every client requires it. Detection confirms only that a command is available; it does not validate authentication, account state, or client compatibility.
+
+The Terminal instructions are informational: the assistant can copy the three platform-appropriate commands and open the correct preferences page, but it never changes the user's Terminal settings.
 
 ## Configuration safety
 

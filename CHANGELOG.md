@@ -13,3 +13,4 @@
 - Clarified that Node.js is client-dependent and is not an Unreal MCP requirement.
 - Hardened MCP session retries and tools/list failure diagnostics.
 - Added endpoint copy and project-folder actions.
+- Added optional, non-destructive Unreal Terminal startup instructions with copy and settings shortcuts.
