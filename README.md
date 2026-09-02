@@ -12,7 +12,16 @@ Epic's native experimental plugins are engine components and are not included in
 
 ## Installation
 
-Copy the `UnrealMCPSetupAssistant` folder into your project's `Plugins` directory, enable **Unreal MCP Setup Assistant** under **Edit > Plugins**, and restart Unreal Editor when requested.
+Choose a download from the [v0.1.0 release](https://github.com/Viveklakhanpal/UnrealMCPSetupAssistant/releases/tag/v0.1.0):
+
+- **Windows ready to install:** `UnrealMCPSetupAssistant-0.1.0-win64.zip` includes precompiled Win64 binaries and source. No C++ compiler is needed to load the plugin with a compatible installed engine build.
+- **Source code for developers:** `UnrealMCPSetupAssistant-0.1.0-source.zip` contains source and documentation, without binaries. Compiling requires an Unreal-compatible C++ development toolchain.
+
+Close Unreal, extract the inner `UnrealMCPSetupAssistant` folder into your project's `Plugins` directory, reopen the project, enable **Unreal MCP Setup Assistant** under **Edit > Plugins**, and restart when requested. Then open **Tools > Unreal MCP Setup**.
+
+Read the [short installation guide](INSTALLATION.md) for the two workflows and rebuild troubleshooting.
+
+**Tutorial Link:** [MCP Setup Assistant — video installation guide](https://youtu.be/gK2hESlAus0)
 
 ## Use
 
@@ -47,3 +56,5 @@ JSON client files are merged through Epic's native UE 5.8 implementation. The as
 ## Current validation
 
 The plugin is currently built and tested against Unreal Engine 5.8 on Windows. The implementation uses cross-platform Unreal APIs, but macOS and Linux validation remains pending.
+
+The Windows binary was built with UE 5.8.0 (engine BuildId `55116800`). Compatibility with other patch or custom engine builds is not guaranteed. A missing-module/rebuild prompt can indicate a mismatched engine build; see the installation guide. A source download is not a promise of tested macOS or Linux support.
